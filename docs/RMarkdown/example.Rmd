@@ -1,0 +1,220 @@
+---
+title: "Monografía Visualización"
+author: "Moisés Alfonso Guerrero Jiménez, Andrés Castaño Licona"
+date: "2024-03-07"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+---
+
+```{r setup, echo=FALSE, warning=FALSE}
+# Es necesario tener instalada la librería reticulate
+library(reticulate) # Instalar desde la consola con install.packages("reticulate", dependencies=TRUE)
+# Se debe indicar la ubicación de Python
+Sys.setenv(RETICULATE_PYTHON = "C:/Users/Moisés Guerrero/AppData/Local/Programs/Python/Python311/python.exe")
+```
+
+# Diseño de solución para predicción de radiación solar en diferentes escalas temporales de la comunidad de Castilla y León, España, para la gestión de proyectos de generación fotovoltaica.
+
+## Visualización de datos
+
+### Integrantes
+
+* Moisés Alfonso Guerrero Jiménez
+* Andrés Castaño Licona
+
+### Descripción de los datos
+
+Los datos usados hacen parte de un repositorio abierto con licencia Creative Commons Attribution, que contiene mediciones de radiación solar horizontal global (GHI), recopiladas durante un periodo de 18 años, desde el 1 de enero de 2002 hasta el 31 de diciembre de 2019, con una granularidad de 30 minutos, que fueron medidos en 37 estaciones ubicadas en la región española de Castilla y León.
+
+El conjunto de datos no solo cuenta con datos crudos, sino también con datos refinados y etiquetados por estaciones de medición, contando además con variables meteorológicas y geográficas que complementan el valor de los datos de irradiación.
+
+Los datos fueron publicados por integrantes del Departamento de Ingeniería Topográfica y Cartográfica de la Escuela Técnica Superior de Ingenieros en Topografía, Geodesia y Cartografía, Universidad Politécnica de Madrid, y se encuentran disponibles para su uso con fines de investigación en un repositorio público con nombre “CyL_GHI” disponible en el sitio web Zenodo (https://zenodo.org/records/7404167), y además cuentan con una documentación detallada con nombre “CyL-GHI: Global Horizontal Irradiance Dataset Containing 18 Years of Refined Data at 30-Min Granularity from 37 Stations Located in Castile and León (Spain)”, que describe de manera precisa mucho del preprocesamiento, estandarización y limpieza realizado por los autores, así como muchas de las características del dataset.
+
+La lectura de los datos requiere de un paso inicial de descarga del repositorio de Zenodo, para lo cual se hace uso del comando wget de linux, que nos permite realizar la descarga directamente al directorio de ejecución en Colab.
+
+```{python, echo=FALSE}
+import os
+import math
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+from datetime import datetime, timedelta
+```
+
+De acuerdo a la documentación del dataset, las mediciones fueron realizadas en un total de 37 estaciones meteorológicas, por lo cual es necesario realiza la extracción de los datos por cada estación meteorológica en cada día.
+
+```{python, echo=FALSE}
+# Primero se obtiene la tabla que relaciona las 37 estaciones meteorológicas con dataframe de pandas
+df_geo = pd.read_csv("CyL_geo.csv", header = 0, sep = ',', index_col=0)
+print(df_geo.head().to_markdown(index=False))
+```
+
+```{python, echo=FALSE}
+print(df_geo.dtypes.to_markdown(index=False))
+```
+
+Los datos crudos cuentan con un encabezado con 10 columnas separadas por punto y coma (;), correspondientes a:
+
+* Código: Código único de la estación en la cual se realizaron las mediciones.
+* Ubicación: Indica el nombre de la estación de medición de acuerdo a su ubicación.
+* Fecha (AAAA-MM-DD): Hace referencia a la fecha en la cual se realizaron las mediciones (UTC).
+* Hora (HHMM): Indica la hora en la cual se realizó la medición para la fecha correspondiente (UTC).
+* Precipitación (mm): Precipitaciones medidas en milímetros en la ubicación de la estación de medición.
+* Temperatura (°C): Temperatura en grados celsius medida en la ubicación de la estación meteorológica.
+* Humedad relativa (%): Indica el porcentaje de humedad medido.
+* Radiación (W/m2): Medición de la radiación solar global horizontal (GHI).
+* Vel. viento (m/s): Velocidad del viento medida en $m/s$
+* Dir. viento (°): Dirección del viento en grados.
+
+Sin embargo, se observan caracteres especiales que sugieren que el archivo debe ser leído con una codificación diferente a UTF-8. De acuerdo a la documentación disponible en https://docs.python.org/3/library/codecs.html#standard-encodings, hacemos uso de una codificación latin-1, lo que permite visualizar correctamente los datos al ser leídos.
+
+Tal como se observa a continuación al intentar leer el archivo con la codificación por defecto no es posible leer el archivo.
+
+```{python, echo=FALSE}
+# Construimos una función que nos permita hacer el preprocesamiento de cada dataframe para ser unificados
+def preprocesamientoDatos(path):
+    """
+    Realiza la lectura y el preprocesamiento de los datos para ser estandarizados
+    """
+    # Se realiza la lectura con una codificación "latin-1" para lectura de los caracteres especiales
+    df = pd.read_csv(path, header=0, sep=';', encoding='latin-1')
+
+    # Actualización de los nombres de las columnas
+    df.rename(columns={
+        "Código": "station_code",
+        "Ubicación": "station_name",
+        "Fecha (AAAA-MM-DD)": "date",
+        "Hora (HHMM)": "time",
+        "Precipitación (mm)": "precipitation",
+        "Temperatura (ºC)": "air_temp",
+        "Humedad relativa (%)": "humidity",
+        "Radiación (W/m2)": "GHI",
+        "Vel. viento (m/s)": "wind_sp",
+        "Dir. viento (º)": "wind_dir"
+    }, inplace=True)
+
+    # Dado que pandas autimáticamente interpreta los tipos de dato se realizan transformaciones a los mismos
+    # Llenamos los 4 caracteres de la hora
+    df['time']  = df.time.astype(str).str.zfill(4)
+
+    # Creamos una marca de tiempo a partir de los datos de fecha y hora
+    df['timestamp'] = df['date'] + ' ' + df['time']
+    # Modificamos aquellos cuya hora se encuentra a las 24:00 que corresponde a 00:00 del día siguiente
+    df['timestamp'] = df['timestamp']\
+        .apply(lambda x: x if x[-4:] != '2400' else datetime.strftime(datetime.strptime(x[:10], '%Y-%m-%d') + timedelta(1), '%Y-%m-%d') + ' 0000')
+    # Convertimos los datos a datetime64
+    df['timestamp'] = pd.to_datetime(df['timestamp'], format = '%Y-%m-%d %H%M')
+    # Borramos las columnas date y time
+    df.drop(columns=['date', 'time'])
+    return df
+```
+
+
+```{python, echo=FALSE}
+# Para cada archivo por cada subcarpeta, realizamos la unificación temporal de los datos a un único DataFrame
+
+years = range(2002, 2005, 1) # 2002 - 2004
+
+df_general = pd.DataFrame() # Dataframe vacío
+for year in years:
+    print(f"Cargando archivos para el año {year}...")
+    # Usamos la librería os para listar los archivos en el directorio temp_CyL/
+    files_list = os.listdir(f"temp_CyL/{year}/")
+    # Para cada archivo incluido en el listado realizamos una lectura y preprocesamiento
+    for file in files_list:
+        df_temp = preprocesamientoDatos(f"temp_CyL/{year}/{file}")
+        df_general = pd.concat([df_general, df_temp])
+
+# Verificamos el df_general creado
+print(f"Dimensiones del dataframe general creado: {df_general.shape}")
+```
+
+### Obtención de radiación solar incidente teórica
+
+Con el objetivo de complementar el conjunto de datos, se busca mediante el desarrollo de una función obtener la radiación solar incidente teórica para una latitud y longitud específicas.
+
+De acuerdo a lo comentado en "[Cálculo de la radiación solar extraterrestre en función de la latitud y la declinación solar](https://m.riunet.upv.es/bitstream/handle/10251/68296/Bautista%20-%20C%C3%A1lculo%20de%20la%20radiaci%C3%B3n%20solar%20extraterrestre%20en%20funci%C3%B3n%20de%20la%20latitud%20y%20la%20declinaci%C3%B3n....pdf?sequence=1&isAllowed=y)" es posible obtener dicho valor mediante ecuaciones que describen la radiación solar teórica extraterreste.
+
+Por medio del dataframe de datos geográficos `df_geo`, podemos hacer uso de las latitudes y longitudes específicas de cada estación de medición y de esta manera complementar los datos para cada estación meteorológica.
+
+```{python, echo=FALSE}
+def radiacion_solar_S0(dia_anho):
+    """
+    Obtiene el valor del parámetro solar S0 o densidad de flujo de la radiación
+    que se recibe sobre una superficie perpendicular a los rayos solares para
+    un día del año de 1 a 365.
+    """
+    dia_ref = 81  # 22 de marzo
+    if dia_anho < 81:
+        D = 365 - dia_ref + dia_anho
+    else:
+        D = dia_anho - dia_ref
+    constante_solar = 1367.
+    distancia_media_sol = 149597870000.  # metros
+
+    d = (1.496 * 10 ** 11) * (1 - 0.017 * math.sin(math.radians(0.9856 * D)))
+    return constante_solar * ((distancia_media_sol / d) ** 2)
+
+def declinacion_solar(dia_anho):
+    """
+    Obtiene la posición relativa del sol respecto a la superficie de la tierra
+    en un día específico del año de 1 a 365.
+    """
+    return 23.5 * math.cos(math.radians((360 * (dia_anho - 172) / 365.)))
+
+def hora_solar(dia_anho, hora, longitud, longitud_del_huso, adelanto_hora_verano=0):
+    """
+    Realiza una corrección astronómica de la hora del día convencional
+    transformandola en la hora solar.
+    """
+    M = dia_anho * 2. * math.pi / 365.24
+    EoT = 229.19 * (-0.0334 * math.sin(math.radians(M)) + 0.04184 * math.sin(math.radians(2 * M + 3.5884)))
+    return 15 * (hora - adelanto_hora_verano - 12) + (longitud - longitud_del_huso) + EoT / 4.0
+
+def radiacion_solar_teorica(dia, hora, latitud, longitud, longitud_huso_horario, hora_verano=0):
+    """
+    Obtiene la radiación solar teórica para un punto de la tierra, teniendo en
+    cuenta la ubicación geográfica, la declinación, el parámetro solar S0 y la
+    hora solar.
+    """
+    S0 = radiacion_solar_S0(dia)
+    inc = declinacion_solar(dia)
+    w = hora_solar(dia, hora, longitud, longitud_huso_horario, hora_verano)
+    S = S0 * math.sin(math.radians(90 - latitud + inc)) * math.cos(math.radians(w))
+    return S if S>=0 else 0
+     
+```
+
+El siguiente ejemplo toma los datos de la estación de medición en Nava de Arévalo (AV01) y a partir de la latitud y longitud, así como la longitud del uso horario, permite obtener valores de GHI teórico.
+
+```{python, echo=FALSE}
+longitud_huso = 0 # Longitud del huso horario en españa
+
+# A partir de las funciones, adicionamos una columna de radiación teórica
+df_test = df_general[df_general.station_code == 'AV01'].copy()
+print(df_test.head().to_markdown(index=False))
+```
+
+```{python, echo=FALSE}
+latitude = df_geo[df_geo.station_code == 'AV01']['latitude'].iloc[0]
+longitude = df_geo[df_geo.station_code == 'AV01']['longitude'].iloc[0]
+
+df_test['theoretical_radiation'] = df_test.apply(lambda row : radiacion_solar_teorica(row['timestamp'].dayofyear,
+                     row["timestamp"].hour + row["timestamp"].minute/60., latitude, longitude, longitud_huso), axis = 1)
+
+print(df_test.head().to_markdown(index=False))
+```
+
+```{python, echo=FALSE}
+df_test[df_test.timestamp.between('2003-04-01', '2003-04-15')].plot(x = 'timestamp', y = ['GHI', 'theoretical_radiation'], figsize = (12, 5))
+plt.title("Radiación atmosférica extraterrestre teórica y GHI medido")
+plt.xlabel("Marca de tiempo")
+plt.ylabel("Radiación solar $W/m^{2}$")
+plt.grid()
+plt.legend([f"GHI medido en {df_test.station_name.unique()[0]}", "GHI teórico"])
+plt.show()
+```
