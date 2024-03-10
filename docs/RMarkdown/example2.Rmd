@@ -1,0 +1,333 @@
+---
+title: "Visualización entrega I"
+author: "Moisés Alfonso Guerrero Jiménez, Andrés Castaño Licona"
+date: "2024-03-07"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+---
+
+```{r setup, echo=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# Es necesario tener instalada la librería reticulate
+library(reticulate) # Instalar desde la consola con install.packages("reticulate", dependencies=TRUE)
+library(knitr)
+library(tinytex)
+# Se debe indicar la ubicación de Python
+Sys.setenv(RETICULATE_PYTHON = "C:/Users/Moisés Guerrero/AppData/Local/Programs/Python/Python311/python.exe")
+```
+
+
+# Diseño de solución para predicción de radiación solar en diferentes escalas temporales de la comunidad de Castilla y León, España, para la gestión de proyectos de generación fotovoltaica.
+
+## Descripción del problema
+
+La crisis climática actual es un desafío crucial para la humanidad. El cambio climático tiene efectos significativos en el planeta y la vida humana, como el aumento del nivel del mar, fenómenos meteorológicos extremos y cambios en los patrones de precipitación. Los gases de efecto invernadero, especialmente de las centrales térmicas, son los principales impulsores del cambio climático. Las energías renovables, como la solar y la eólica, ofrecen una alternativa más limpia y asequible. Sin embargo, la transición hacia la energía solar fotovoltaica presenta desafíos técnicos y operativos debido a la variabilidad de la radiación solar.
+
+## Radiación solar teórica
+
+La radiación solar extraterrestre es la radiación electromagnética emitida por el sol que llega a la Tierra. Esta depende de varios factores, como la latitud, longitud y día del año.
+
+* **Latitud:** Los puntos más cercanos al ecuador geográfico reciben en promedio más radiación solar extraterrestre que los puntos cercanos a los polos debido a la inclinación de la Tierra sobre su eje de rotación.
+* **Longitud:** Aunque la longitud no afecta directamente la cantidad de radiación solar, se utiliza como referencia para estimar la zona horaria y la franja del día en la que se percibe luz solar.
+* **Día del año:** La Tierra describe una órbita elíptica alrededor del sol, lo que significa que la distancia entre el sol y la Tierra varía a lo largo del año.
+
+## Radiación solar percibida
+
+La atmósfera de la Tierra está compuesta por diversos gases, vapor de agua y aerosoles, como partículas de polvo. Estos componentes interactúan con la radiación solar de diferentes maneras, modificando su intensidad y distribución.
+
+* **Capa de ozono:** La capa de ozono tiene la capacidad de absorber la radiación ultravioleta del sol.
+* **Aerosoles y vapor de agua:** Estos pueden absorber la radiación en el espectro infrarrojo.
+* **Interacciones en la atmósfera:** A medida que la luz solar atraviesa la atmósfera, parte de ella puede ser reflejada, dispersada o absorbida por moléculas de aire (como nitrógeno, oxígeno y helio), vapor de agua, nubes y aerosoles .
+* **Pronóstico de radiación solar:** Predecir este tipo de radiación es sumamente complejo, ya que depende de múltiples factores físicos, como la temperatura, el vapor de agua, la velocidad del viento y la presencia de núcleos de condensación. Además, la variabilidad extrema introducida por el cambio climático también influye .
+* **Nubosidad:** Las nubes actúan como moderadores de la radiación solar. Pueden reflejar y absorber parte de la radiación, lo que afecta la cantidad que llega a la superficie terrestre. El tipo, espesor y tamaño de las nubes determinan cuánta radiación se refleja o absorbe.
+
+### Problema de negocio
+
+En los sistemas de generación de energía, es crucial mantener un equilibrio adecuado entre la demanda y la oferta. Las predicciones de estos dos componentes permiten a los participantes del sistema (como generadores, distribuidores, operadores y reguladores) establecer las dinámicas del mercado energético, incluyendo la compra y venta de energía.
+
+Dada la creciente implementación de proyectos fotovoltaicos en todo el mundo, es altamente deseable predecir la radiación solar en diferentes escalas temporales. Estas predicciones tienen aplicaciones amplias, como seleccionar ubicaciones óptimas para parques solares, estimar el equilibrio entre oferta y demanda, establecer franjas horarias para el despacho de energía y administrar el almacenamiento de energía. Además, ayudan a planificar ciclos de mantenimiento y transacciones en el mercado energético.
+
+Para estimar la radiación solar percibida en un punto de la Tierra, se utilizan modelos físicos o estadísticos. Los modelos físicos aplican leyes físicas para calcular la cantidad de radiación solar que llega a la superficie terrestre, considerando las interacciones con la atmósfera. Los modelos estadísticos se basan en datos históricos de radiación solar para predecir la radiación futura.
+
+### Aproximación desde la analítica de datos
+
+El enfoque abordado en este trabajo se centra en analítica de datos, utilizando métodos estadísticos y machine learning para predecir la radiación solar en diferentes escalas temporales.
+
+* **Análisis estadístico:** Se identifican dependencias entre predictores (variables meteorológicas). El tratamiento de datos y los modelos se combinan, utilizando tanto modelos de aprendizaje supervisado para predecir la radiación solar a partir de otras variables meteorológicas (incluida la radiación solar teórica) como modelos diseñados para el análisis de series de tiempo.
+* **Enfoque conjunto:** Se sigue un enfoque de aprendizaje conjunto, integrando predicciones de los modelos desarrollados. Esto permite combinar las fortalezas de diferentes enfoques de modelado para mejorar la precisión de las predicciones.
+
+## Datos
+
+Los datos usados hacen parte de un repositorio abierto con licencia Creative Commons Attribution, que contiene mediciones de radiación horizontal global solar (GHI), para el período 2002-2019, con frecuencia de 30 minutos, para 37 estaciones de Castilla y León, en España. 
+
+Los datos fueron publicados por integrantes del Departamento de Ingeniería Topográfica y Cartográfica de la Escuela Técnica Superior de Ingenieros en Topografía, Geodesia y Cartografía, Universidad Politécnica de Madrid, y se encuentran disponibles para su uso con fines de investigación en un repositorio público. Los datos contienen información de marca de tiempo, datos meteorológicos (precipitación, temperatura, humedad relativa, radiación solar, velocidad y dirección del viento) y geoespaciales (latitud y longitud).
+
+```{python, echo=FALSE}
+import os
+import math
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Cartopy
+import cartopy.crs as ccrs
+import cartopy.feature as cf
+
+from datetime import datetime, timedelta
+```
+
+```{python, echo=FALSE}
+# Primero se obtiene la tabla que relaciona las 37 estaciones meteorológicas con dataframe de pandas
+df_geo = pd.read_csv("CyL_geo.csv", header = 0, sep = ',', index_col=0)
+
+fig, ax = plt.subplots(1, 2, figsize=(12, 7), subplot_kw={'projection': ccrs.Mercator()})
+
+ax[0].set_extent([-10, 4, 36, 44])
+ax[0].gridlines(draw_labels=True, dms=True, x_inline=False, y_inline=False);
+ax[0].add_feature(cf.COASTLINE)
+ax[0].add_feature(cf.LAND)
+ax[0].add_feature(cf.RIVERS)
+ax[0].add_feature(cf.BORDERS)
+
+ax[0].scatter(df_geo['longitude'], df_geo['latitude'], marker='o', s=10, alpha=0.8, c='#CB0006', transform=ccrs.PlateCarree())
+ax[0].set_title('Ubicaciones de las 37 estaciones de medición en España')
+
+ax[1].set_extent([-7, -2, 40.5, 44])
+ax[1].gridlines(draw_labels=True, dms=True, x_inline=False, y_inline=False);
+ax[1].add_feature(cf.COASTLINE)
+ax[1].add_feature(cf.LAND)
+ax[1].add_feature(cf.RIVERS)
+ax[1].add_feature(cf.BORDERS)
+ax[1].scatter(df_geo['longitude'], df_geo['latitude'], marker='o', s=10, alpha=0.8, c='#CB0006', transform=ccrs.PlateCarree())
+ax[1].set_title('Códigos de estación y sus ubicaciones')
+
+for index, row in df_geo.iterrows():
+  ax[1].annotate(text=row['station_code'], xy=(row['longitude'], row['latitude']), fontsize=7, transform=ccrs.PlateCarree())
+plt.show()
+```
+
+<!-- ```{r, echo=FALSE}
+aux_df_geo = py$df_geo
+kable(aux_df_geo)
+``` -->
+
+Los datos incluyen mediciones realizadas para cada una de las 37 estaciones relacionadas incluyendo:
+
+* **Código:** Código único de la estación en la cual se realizaron las mediciones.
+* **Ubicación:** Indica el nombre de la estación de medición de acuerdo a su ubicación.
+* **Fecha (AAAA-MM-DD):** Hace referencia a la fecha en la cual se realizaron las mediciones (UTC).
+* **Hora (HHMM):** Indica la hora en la cual se realizó la medición para la fecha correspondiente (UTC).
+* **Precipitación (mm):** Precipitaciones medidas en milímetros en la ubicación de la estación de medición.
+* **Temperatura (°C):** Temperatura en grados celsius medida en la ubicación de la estación meteorológica.
+* **Humedad relativa (%):** Indica el porcentaje de humedad medido.
+* **Radiación ($W/m^{2}$):** Medición de la radiación solar global horizontal (GHI).
+* **Vel. viento ($m/s$):** Velocidad del viento medida en $m/s$.
+* **Dir. viento (°):** Dirección del viento en grados.
+
+```{python, echo=FALSE}
+# Construimos una función que nos permita hacer el preprocesamiento de cada dataframe para ser unificados
+def preprocesamientoDatos(path):
+    """
+    Realiza la lectura y el preprocesamiento de los datos para ser estandarizados
+    """
+    # Se realiza la lectura con una codificación "latin-1" para lectura de los caracteres especiales
+    df = pd.read_csv(path, header=0, sep=';', encoding='latin-1')
+
+    # Actualización de los nombres de las columnas
+    df.rename(columns={
+        "Código": "station_code",
+        "Ubicación": "station_name",
+        "Fecha (AAAA-MM-DD)": "date",
+        "Hora (HHMM)": "time",
+        "Precipitación (mm)": "precipitation",
+        "Temperatura (ºC)": "air_temp",
+        "Humedad relativa (%)": "humidity",
+        "Radiación (W/m2)": "GHI",
+        "Vel. viento (m/s)": "wind_sp",
+        "Dir. viento (º)": "wind_dir"
+    }, inplace=True)
+
+    # Dado que pandas autimáticamente interpreta los tipos de dato se realizan transformaciones a los mismos
+    # Llenamos los 4 caracteres de la hora
+    df['time']  = df.time.astype(str).str.zfill(4)
+
+    # Creamos una marca de tiempo a partir de los datos de fecha y hora
+    df['timestamp'] = df['date'] + ' ' + df['time']
+    # Modificamos aquellos cuya hora se encuentra a las 24:00 que corresponde a 00:00 del día siguiente
+    df['timestamp'] = df['timestamp']\
+        .apply(lambda x: x if x[-4:] != '2400' else datetime.strftime(datetime.strptime(x[:10], '%Y-%m-%d') + timedelta(1), '%Y-%m-%d') + ' 0000')
+    # Convertimos los datos a datetime64
+    df['timestamp'] = pd.to_datetime(df['timestamp'], format = '%Y-%m-%d %H%M')
+    # Borramos las columnas date y time
+    df.drop(columns=['date', 'time'])
+    return df
+```
+
+```{python, echo=FALSE}
+# Para cada archivo por cada subcarpeta, realizamos la unificación temporal de los datos a un único DataFrame
+
+# years = range(2002, 2005, 1) # 2002 - 2004
+years = (2002,) # Solo para 2002
+
+df_general = pd.DataFrame() # Dataframe vacío
+for year in years:
+    # Usamos la librería os para listar los archivos en el directorio temp_CyL/
+    files_list = os.listdir(f"temp_CyL/{year}/")
+    # Para cada archivo incluido en el listado realizamos una lectura y preprocesamiento
+    for file in files_list:
+        df_temp = preprocesamientoDatos(f"temp_CyL/{year}/{file}")
+        df_general = pd.concat([df_general, df_temp])
+```
+
+```{python, echo=FALSE}
+def radiacion_solar_S0(dia_anho):
+    """
+    Obtiene el valor del parámetro solar S0 o densidad de flujo de la radiación
+    que se recibe sobre una superficie perpendicular a los rayos solares para
+    un día del año de 1 a 365.
+    """
+    dia_ref = 81  # 22 de marzo
+    if dia_anho < 81:
+        D = 365 - dia_ref + dia_anho
+    else:
+        D = dia_anho - dia_ref
+    constante_solar = 1367.
+    distancia_media_sol = 149597870000.  # metros
+
+    d = (1.496 * 10 ** 11) * (1 - 0.017 * math.sin(math.radians(0.9856 * D)))
+    return constante_solar * ((distancia_media_sol / d) ** 2)
+
+def declinacion_solar(dia_anho):
+    """
+    Obtiene la posición relativa del sol respecto a la superficie de la tierra
+    en un día específico del año de 1 a 365.
+    """
+    return 23.5 * math.cos(math.radians((360 * (dia_anho - 172) / 365.)))
+
+def hora_solar(dia_anho, hora, longitud, longitud_del_huso, adelanto_hora_verano=0):
+    """
+    Realiza una corrección astronómica de la hora del día convencional
+    transformandola en la hora solar.
+    """
+    M = dia_anho * 2. * math.pi / 365.24
+    EoT = 229.19 * (-0.0334 * math.sin(math.radians(M)) + 0.04184 * math.sin(math.radians(2 * M + 3.5884)))
+    return 15 * (hora - adelanto_hora_verano - 12) + (longitud - longitud_del_huso) + EoT / 4.0
+
+def radiacion_solar_teorica(dia, hora, latitud, longitud, longitud_huso_horario, hora_verano=0):
+    """
+    Obtiene la radiación solar teórica para un punto de la tierra, teniendo en
+    cuenta la ubicación geográfica, la declinación, el parámetro solar S0 y la
+    hora solar.
+    """
+    S0 = radiacion_solar_S0(dia)
+    inc = declinacion_solar(dia)
+    w = hora_solar(dia, hora, longitud, longitud_huso_horario, hora_verano)
+    S = S0 * math.sin(math.radians(90 - latitud + inc)) * math.cos(math.radians(w))
+    return S if S>=0 else 0
+     
+```
+
+## Analítica descriptiva
+
+Para visualizar el comportamiento de la radiación solar horizontal disponible a lo largo del año, se realiza una comparación entre los datos medidos y los datos teóricos esperados en la ubicación de cada una de las estaciones meteorológicas.
+
+A continuación se muestra un ejemplo para el caso particular de la estación de *Nava de Arévalo (Código de estación AV01)*, donde se toman los datos de la estación de medición durante el año 2002 como el GHI medido, y por otro lado,haciendo uso de latitud y longitud, así como la longitud del uso horario, se obtienen los valores de GHI teórico.
+
+```{python, echo=FALSE}
+longitud_huso = 0 # Longitud del huso horario en españa
+
+# A partir de las funciones, adicionamos una columna de radiación teórica
+df_test = df_general[df_general.station_code == 'AV01'].copy()
+```
+
+```{python, echo=FALSE}
+latitude = df_geo[df_geo.station_code == 'AV01']['latitude'].iloc[0]
+longitude = df_geo[df_geo.station_code == 'AV01']['longitude'].iloc[0]
+
+df_test['theoretical_radiation'] = df_test.apply(lambda row : radiacion_solar_teorica(row['timestamp'].dayofyear,
+                     row["timestamp"].hour + row["timestamp"].minute/60., latitude, longitude, longitud_huso), axis = 1)
+```
+
+```{python, echo=FALSE}
+# Ejemplo año 2002 estación AV01 Nava de Arévalo
+latitud = df_geo[df_geo.station_code == 'AV01']['latitude'].iloc[0]
+longitud = df_geo[df_geo.station_code == 'AV01']['longitude'].iloc[0]
+
+# Se genera una matriz de ceros 366 (año bisiesto) días por 24 horas
+radiacion_theo = np.zeros((366, 24))
+
+# Se actualizan los valores de la matriz de acuerdo la radiación solar teórica
+for i, dia in enumerate(np.arange(0, 366)):
+    for j, hora in enumerate(np.arange(0, 24)):
+        s = radiacion_solar_teorica(dia, hora, latitud, longitud, longitud_huso)
+        if s < 0:
+            s = 0
+        radiacion_theo[i][j] = s
+```
+
+```{python, echo=FALSE}
+df_grouped = df_test.groupby([df_test['timestamp'].dt.date, df_test['timestamp'].dt.hour])[['GHI']].mean().copy()
+df_grouped.index.names = ['DateLocal', 'HourLocal']
+df_grouped.reset_index(inplace = True)
+df_grouped['DayOfYear'] = pd.to_datetime(df_grouped['DateLocal'], format='%Y-%m-%d').dt.strftime('%j').astype(int)
+
+radiacion = np.zeros((366, 24)) # 366 días dado que es un año bisiesto
+for _, row in df_grouped.iterrows():
+    radiacion[row['DayOfYear']-1][row['HourLocal']] = row['GHI']
+```
+
+```{python, echo=FALSE}
+fig, axs = plt.subplots(1, 2, figsize=(10, 4))
+
+# Gráfico de radiación solar medida
+im = axs[0].imshow(radiacion, aspect='auto', cmap='hot');
+axs[0].set_xlabel('Hora del día');
+axs[0].set_ylabel('Día del año');
+axs[0].set_title('Radiación solar medida [$W/m^{2}$]');
+axs[0].grid(False)
+
+# Gráfico de radiación solar teórica
+im2 = axs[1].imshow(radiacion_theo, aspect='auto', cmap='hot');
+axs[1].set_xlabel('Hora del día');
+axs[1].set_title('Radiación solar teórica [$W/m^{2}$]');
+axs[1].grid(False)
+
+fig.colorbar(im, ax=axs.ravel().tolist());
+plt.show()
+```
+
+El siguiente gráfico muestra el comportamiento de la radiación solar en W/m² a lo largo de los 20 primeros días de abril de 2002 para la estación de medición Nava de Arévalo (AV01), donde se observa la reducción de la irradiación solar en la ubicación de la estación debida a factores meteorológicos adicionales, específicos de la zona, con respecto a la radiación solar teórica esperada a nivel de la atmósfera superior.
+
+```{python, echo=FALSE}
+df_test[df_test.timestamp.between('2002-04-01', '2002-04-15')].plot(x = 'timestamp', y = ['GHI', 'theoretical_radiation'], figsize = (14, 5));
+plt.title("Radiación atmosférica extraterrestre teórica y GHI medido");
+plt.xlabel("Marca de tiempo");
+plt.ylabel("Radiación solar $W/m^{2}$");
+plt.grid()
+plt.legend([f"GHI medido en {df_test.station_name.unique()[0]}", "GHI teórico"]);
+plt.show()
+```
+
+```{python, echo=FALSE}
+df_test_desc = df_test.describe()
+```
+
+```{r, echo=FALSE}
+aux_df_test_desc = py$df_test_desc
+kable(aux_df_test_desc)
+```
+
+## Métodos de aprendizaje profundo para la predicción de energía solar
+
+Los métodos de pronóstico de radiación solar más utilizados y altamente recomendados incluyen:
+
+* **LSTM (Long Short-Term Memory):** Estas redes neuronales recurrentes son ampliamente utilizadas para predecir la radiación solar. Ofrecen una buena capacidad de modelado de secuencias temporales.
+* **Redes de creencia profunda (DBN):** Estas redes están diseñadas para aprender representaciones jerárquicas de datos. Aunque menos comunes que las LSTM, han demostrado ser efectivas en algunos casos.
+* **Redes neuronales convolucionales (CNN):** Aunque se asocian principalmente con imágenes, también se han aplicado con éxito al pronóstico de la radiación solar.
+* **Redes de estado de eco (ESN):** Son redes neuronales recurrentes con una arquitectura especializada. A menudo se utilizan para modelar dinámicas no lineales en series temporales.
+* **Unidades recurrentes cerradas (GRU):** Son similares a las LSTM pero más simples. También se utilizan para predecir la radiación solar.
+
+En la literatura, se encuentran numerosas referencias a modelos que combinan estos métodos de manera híbrida para optimizar su desempeño. La evaluación suele realizarse considerando diferentes estaciones del año y características específicas del lugar de estudio.
