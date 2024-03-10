@@ -10,9 +10,13 @@ output:
 
 ```{r setup, echo=FALSE, warning=FALSE}
 # Es necesario tener instalada la librería reticulate
-library(reticulate) # Instalar desde la consola con install.packages("reticulate", dependencies=TRUE)
-# Se debe indicar la ubicación de Python
-Sys.setenv(RETICULATE_PYTHON = "C:/Users/Moisés Guerrero/AppData/Local/Programs/Python/Python311/python.exe")
+#library(reticulate) # Instalar desde la consola con install.packages("reticulate", dependencies=TRUE)
+knitr::opts_chunk$set(echo = TRUE)
+#Sys.setenv(RETICULATE_PYTHON = "/Users/aclicona/Documents/Python/Especializacion/venv/bin/python")
+#use_python("/Users/aclicona/Documents/Python/Especializacion/venv/bin/python", required = T)
+library(tinytex) #tinytex::install_tinytex()
+library(reticulate)
+use_virtualenv("~/Documents/Python/Especializacion/venv")
 ```
 
 # Diseño de solución para predicción de radiación solar en diferentes escalas temporales de la comunidad de Castilla y León, España, para la gestión de proyectos de generación fotovoltaica.
@@ -37,10 +41,8 @@ La lectura de los datos requiere de un paso inicial de descarga del repositorio 
 ```{python, echo=FALSE}
 import os
 import math
-import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns
 
 from datetime import datetime, timedelta
 ```
