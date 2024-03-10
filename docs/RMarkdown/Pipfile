@@ -9,6 +9,7 @@ pandas = "*"
 matplotlib = "*"
 ipykernel = "*"
 seaborn = "*"
+cartopy = "*"
 
 [dev-packages]
 

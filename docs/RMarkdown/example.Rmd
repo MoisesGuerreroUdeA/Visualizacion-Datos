@@ -21,13 +21,6 @@ use_virtualenv("~/Documents/Python/Especializacion/venv")
 
 # Diseño de solución para predicción de radiación solar en diferentes escalas temporales de la comunidad de Castilla y León, España, para la gestión de proyectos de generación fotovoltaica.
 
-## Visualización de datos
-
-### Integrantes
-
-* Moisés Alfonso Guerrero Jiménez
-* Andrés Castaño Licona
-
 ### Descripción de los datos
 
 Los datos usados hacen parte de un repositorio abierto con licencia Creative Commons Attribution, que contiene mediciones de radiación solar horizontal global (GHI), recopiladas durante un periodo de 18 años, desde el 1 de enero de 2002 hasta el 31 de diciembre de 2019, con una granularidad de 30 minutos, que fueron medidos en 37 estaciones ubicadas en la región española de Castilla y León.
@@ -36,7 +29,6 @@ El conjunto de datos no solo cuenta con datos crudos, sino también con datos re
 
 Los datos fueron publicados por integrantes del Departamento de Ingeniería Topográfica y Cartográfica de la Escuela Técnica Superior de Ingenieros en Topografía, Geodesia y Cartografía, Universidad Politécnica de Madrid, y se encuentran disponibles para su uso con fines de investigación en un repositorio público con nombre “CyL_GHI” disponible en el sitio web Zenodo (https://zenodo.org/records/7404167), y además cuentan con una documentación detallada con nombre “CyL-GHI: Global Horizontal Irradiance Dataset Containing 18 Years of Refined Data at 30-Min Granularity from 37 Stations Located in Castile and León (Spain)”, que describe de manera precisa mucho del preprocesamiento, estandarización y limpieza realizado por los autores, así como muchas de las características del dataset.
 
-La lectura de los datos requiere de un paso inicial de descarga del repositorio de Zenodo, para lo cual se hace uso del comando wget de linux, que nos permite realizar la descarga directamente al directorio de ejecución en Colab.
 
 ```{python, echo=FALSE}
 import os
